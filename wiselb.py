@@ -2,7 +2,7 @@
 import sys
 
 ###
-sys.path.insert(0, 'django-1.7')
+#sys.path.insert(0, 'django-1.7')
 ###
 
 import matplotlib
@@ -29,7 +29,7 @@ if False:
     wcs = anwcs_create_allsky_hammer_aitoff2(0., 0., W, H)
     #wcs.write_to('hammertime.wcs')
     basepat = 'w%i-lb-%i-%i.fits' % (band, scalelevel, H)
-    jpegfn = 'wlb.jpeg'
+    jpegfn = 'wlb.jpg'
     
 else:
     # ~2 arcmin per pixel
@@ -41,7 +41,8 @@ else:
     zoom = 360. / width
     wcs = anwcs_create_hammer_aitoff(0., 0., zoom, W, H, FALSE)
     basepat = 'w%i-lbzoom-%i-%i.fits'
-    jpegfn = 'wlbzoom.jpeg'
+    jpegfn = 'wlbzoom.jpg'
+    scalelevel = 5
     
 from decals import settings
 from map.views import _unwise_to_rgb
@@ -59,6 +60,14 @@ for band in [1,2]:
     if os.path.exists(outfn):
         outfn = outfn.replace('.fits', '-u.fits')
         img = fitsio.read(outfn)
+
+        fn = 'hammertime.wcs'
+        wcs.writeto(fn)
+        hdr = fitsio.read_header(fn)
+        hdr['CTYPE1'] = 'GLON-AIT'
+        hdr['CTYPE2'] = 'GLAT-AIT'
+        fitsio.write(outfn.replace('.fits','-wcs.fits'), img, header=hdr, clobber=True)
+
         imgs.append(img)
         continue
 
@@ -84,8 +93,8 @@ for band in [1,2]:
         ok,ox,oy = wcs.radec2pixelxy(ll, bb)
         ox = np.round(ox - 1).astype(int)
         oy = np.round(oy - 1).astype(int)
-        K = np.flatnonzero((ox >= 0) * (ox < W) * (oy >= 0) * (oy < H) * (ok == 0))
-        if len(K) == 0:
+        K = (ox >= 0) * (ox < W) * (oy >= 0) * (oy < H) * (ok == 0)
+        if np.sum(K) == 0:
             # no overlap
             continue
     
@@ -102,6 +111,6 @@ for band in [1,2]:
 
 w1,w2 = imgs
 S,Q = 3000,25
-rgb = _unwise_to_rgb([w1, w2], S=S, Q=Q)
+rgb = _unwise_to_rgb([w1, w2], S=[S]*len(imgs), Q=Q)
 plt.imsave(jpegfn, rgb, origin='lower')
 
