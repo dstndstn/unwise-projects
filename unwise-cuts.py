@@ -170,7 +170,7 @@ def nunez():
 
 
 
-def all_matches_near(catfn, radius, atlasfn, photdir, outfn):
+def all_matches_near(catfn, radius, atlasfn, photdir, outfn, projname):
     '''
     radius in arcsec
     '''
@@ -180,7 +180,7 @@ def all_matches_near(catfn, radius, atlasfn, photdir, outfn):
     M = fits_table(catfn)
     print(len(M), 'targets')
 
-    M.ozdes_index = np.arange(len(M))
+    M.set('%s_index' % projname, np.arange(len(M)))
 
     I,J,d = match_radec(M.ra, M.dec, T.ra, T.dec, 1.2)
     #keep = np.zeros(len(M), bool)
@@ -205,32 +205,35 @@ def all_matches_near(catfn, radius, atlasfn, photdir, outfn):
             continue
         W.cut(J)
         MI = M[I]
-        MI.rename('ra',  'ra_ozdes')
-        MI.rename('dec', 'dec_ozdes')
+        MI.rename('ra',  'ra_%s'  % projname)
+        MI.rename('dec', 'dec_%s' % projname)
         W.add_columns_from(MI)
         WW.append(W)
 
     W = merge_tables(WW)
     print(len(W), 'total matches')
-    W = W[np.argsort(W.ozdes_index)]
+    W = W[np.argsort(W.get('%s_index' % projname))]
+
+    print(len(np.unique(W.objid)), 'unique objids')
+
     W.writeto(outfn)
 
 
 def manga():
     # https://data.sdss.org/sas/mangawork/manga/target/v1_2_12/MaNGA_targets_extNSA.fits
     all_matches_near('MaNGA_targets_extNSA.fits', 60., 'sdss-dr13-atlas.fits',
-                    'sdss-dr13-phot', 'manga-unwise.fits')
+                    'sdss-dr13-phot', 'manga-unwise.fits', 'manga')
 
 
 def sien():
     all_matches_near('ozdes-unwise.fits', 3., 'sdss-dr10d-tiles.fits',
-                    'sdss-dr10d-phot', 'ozdes-unwise-matches.fits')
+                    'sdss-dr10d-phot', 'ozdes-unwise-matches.fits', 'ozdes')
 
 
 if __name__ == '__main__':
     #brandt()
-    #manga()
+    manga()
     #nunez()
-    sien()
+    #sien()
 
 
