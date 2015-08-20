@@ -53,9 +53,9 @@ def nunez():
     #   ...
     #   Wrote 143434 to out/nunez-311.fits
     #
-    istart = 312014
-    k = 312
-    ilast = istart
+    #istart = 312014
+    #k = 312
+    #ilast = istart
 
     TT = []
     for i,(run,camcol,field) in enumerate(zip(W.run, W.camcol, W.field)):
@@ -120,8 +120,9 @@ def nunez():
         # Re-read SDSS photoObjs and grab more columns.
         inds = T.index
         T = fits_table(fn, rows=inds, columns=['ra','dec','raerr','decerr',
-                                            'cmodelmag', 'cmodelmagerr',
-                                            'psfmag','psfmagerr', 'flags', 'flags2', 'objid'])
+                                               'cmodelmag', 'cmodelmagerr',
+                                               'modelmag', 'modelmagerr',
+                                               'psfmag','psfmagerr', 'flags', 'flags2', 'objid'])
     
         unwdir = '/project/projectdirs/cosmo/data/unwise/unwise-phot/sdss-collab/sdss-dr13-pobj'
         fn = os.path.join(unwdir, '%i'%run, '%i'%camcol, 'photoWiseForced-%06i-%i-%04i.fits' % (run, camcol, field))
@@ -168,64 +169,68 @@ def nunez():
     print('Wrote', len(T), 'to', fn)
 
 
-def manga():
-    T = fits_table('sdss-dr13-atlas.fits')
+
+def all_matches_near(catfn, radius, atlasfn, photdir, outfn):
+    '''
+    radius in arcsec
+    '''
+    T = fits_table(atlasfn)
     print(len(T), 'tiles')
 
-    # https://data.sdss.org/sas/mangawork/manga/target/v1_2_12/MaNGA_targets_extNSA.fits
-    M = fits_table('MaNGA_targets_extNSA.fits')
-    print(len(M), 'MaNGA')
+    M = fits_table(catfn)
+    print(len(M), 'targets')
+
+    M.ozdes_index = np.arange(len(M))
 
     I,J,d = match_radec(M.ra, M.dec, T.ra, T.dec, 1.2)
-    keep = np.zeros(len(M), bool)
-    keep[I] = True
-    assert(np.all(keep))
+    #keep = np.zeros(len(M), bool)
+    #keep[I] = True
+    #assert(np.all(keep))
     keep = np.zeros(len(T), bool)
     keep[J] = True
     T.cut(keep)
-    print(len(T), 'tiles near MaNGA targets')
+    print(len(T), 'tiles near targets')
 
-    # Attempted to find nearest...
-    #mw = [None for i in range(len(M))]
-    #md = np.zeros(len(M))
-    #md[:] = 100.
     WW = []
-
     for t in T:
-        fn = 'sdss-dr13-phot/phot-%s.fits' % t.coadd_id
+        fn = os.path.join(photdir, 'phot-%s.fits' % t.coadd_id)
         W = fits_table(fn)
         print(len(W), 'from', fn)
         if len(W) == 0:
             continue
-        #I,J,d = match_radec(M.ra, M.dec, W.ra, W.dec, 1./3600., nearest=True)
-        I,J,d = match_radec(M.ra, M.dec, W.ra, W.dec, 60./3600.)
+
+        I,J,d = match_radec(M.ra, M.dec, W.ra, W.dec, radius/3600.)
         print(len(I), 'matched')
         if len(I) == 0:
             continue
         W.cut(J)
+        MI = M[I]
+        MI.rename('ra',  'ra_ozdes')
+        MI.rename('dec', 'dec_ozdes')
+        W.add_columns_from(MI)
         WW.append(W)
 
-        # nearest = np.flatnonzero(d < md[I])
-        # print(len(nearest), 'nearest')
-        # if len(nearest) == 0:
-        #     continue
-        # I = I[nearest]
-        # J = J[nearest]
-        # D = d[nearest]
-        # for i,j,d in zip(I,J,D):
-        #     md[i] = d
-        #     mw[i] = W[j]
-        # print('Now', np.sum([m is not None for m in mw]), 'of', len(M), 'matched')
-
-    #W = merge_tables(mw)
     W = merge_tables(WW)
     print(len(W), 'total matches')
-    W.writeto('manga-unwise.fits')
+    W = W[np.argsort(W.ozdes_index)]
+    W.writeto(outfn)
+
+
+def manga():
+    # https://data.sdss.org/sas/mangawork/manga/target/v1_2_12/MaNGA_targets_extNSA.fits
+    all_matches_near('MaNGA_targets_extNSA.fits', 60., 'sdss-dr13-atlas.fits',
+                    'sdss-dr13-phot', 'manga-unwise.fits')
+
+
+def sien():
+    all_matches_near('ozdes-unwise.fits', 3., 'sdss-dr10d-tiles.fits',
+                    'sdss-dr10d-phot', 'ozdes-unwise-matches.fits')
+
 
 if __name__ == '__main__':
     #brandt()
-    nunez()
     #manga()
-
+    #nunez()
+    sien()
 
 
