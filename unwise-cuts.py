@@ -170,7 +170,7 @@ def nunez():
 
 
 
-def all_matches_near(catfn, radius, atlasfn, photdir, outfn, projname):
+def all_matches_near(catfn, radius, atlasfn, photdir, outfn, projname, **kwargs):
     '''
     radius in arcsec
     '''
@@ -199,7 +199,7 @@ def all_matches_near(catfn, radius, atlasfn, photdir, outfn, projname):
         if len(W) == 0:
             continue
 
-        I,J,d = match_radec(M.ra, M.dec, W.ra, W.dec, radius/3600.)
+        I,J,d = match_radec(M.ra, M.dec, W.ra, W.dec, radius/3600., **kwargs)
         print(len(I), 'matched')
         if len(I) == 0:
             continue
@@ -229,10 +229,35 @@ def sien():
     all_matches_near('ozdes-unwise.fits', 3., 'sdss-dr10d-tiles.fits',
                     'sdss-dr10d-phot', 'ozdes-unwise-matches.fits', 'ozdes')
 
+def hoyle():
+    all_matches_near('target_list_SDSS_DR7.fits', 1., 'sdss-dr10d-tiles.fits',
+                    'sdss-dr10d-phot', 'hoyle-matches.fits', 'hoyle', nearest=True)
+
 
 if __name__ == '__main__':
+    #hoyle()
+
+    T = fits_table('target_list_SDSS_DR7.fits')
+    print(len(T), 'targets')
+    W = fits_table('hoyle-matches.fits')
+    I,J,d = match_radec(T.ra, T.dec, W.ra, W.dec, 1.0, nearest=True)
+    print(len(I), 'matches')
+    print(len(np.unique(I)), 'unique targets')
+    print(len(np.unique(T.ra[I])), 'unique RAs')
+    print(len(np.unique(J)), 'unique WISE')
+    print(len(np.unique(W.objid[J])), 'unique WISE objids')
+    K = np.argsort(I)
+    I = I[K]
+    J = J[K]
+    W.cut(J)
+    #assert(np.all(W.hoyle_index == np.arange(len(T))))
+
+    for k in ['index', 'hoyle_index', 'ra_hoyle', 'dec_hoyle']:
+        W.delete_column(k)
+    W.writeto('hoyle.fits')
+
     #brandt()
-    manga()
+    #manga()
     #nunez()
     #sien()
 
