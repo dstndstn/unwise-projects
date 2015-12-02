@@ -88,7 +88,7 @@ plt.subplots_adjust(left=0.1, right=0.95, bottom=0.1, top=0.95)
 
 plt.clf()
 plt.imshow(rgb, origin='lower', interpolation='nearest',
-           extent=[lhi,llo,blo,bhi], aspect=1.)#float(H)/W)
+           extent=[lhi,llo,blo,bhi], aspect=1.)
 xt = 300 + np.arange(5)*30
 plt.xticks(xt, ['%i' % (x % 360) for x in xt])
 plt.yticks([-30,-15,0,15,30])
@@ -105,8 +105,20 @@ rgb = _unwise_to_rgb([w1 - medy1[:,np.newaxis],
                       w2 - medy2[:,np.newaxis]], S=[S]*len(imgs), Q=Q)
 
 plt.clf()
-plt.imshow(rgb, origin='lower')
-plt.savefig('2.png')
+plt.imshow(rgb, origin='lower', interpolation='nearest',
+           extent=[lhi,llo,blo,bhi], aspect=1.)
+#plt.axis([390, 330, -15, 15])
+#xt = 330 + np.arange(5)*15
+#plt.yticks([-15,-10,-5,0,5,10,15])
+plt.axis([400, 320, -20, 20])
+xt = 320 + np.arange(5)*20
+plt.yticks(np.arange(-20, 20+0.1, 10))
+plt.xticks(xt, ['%i' % (x % 360) for x in xt])
+plt.xlabel('Galactic longitude $\ell$ (deg)')
+plt.ylabel('Galactic latitude $b$ (deg)')
+ps.savefig()
+
+sys.exit(0)
 
 wm1 = w1 - medy1[:,np.newaxis]
 wm2 = w2 - medy2[:,np.newaxis]
