@@ -1,4 +1,5 @@
-
+from __future__ import print_function
+import tempfile
 import sys
 
 ###
@@ -13,6 +14,62 @@ from astrometry.util.util import *
 from astrometry.util.fits import *
 from astrometry.util.resample import *
 from astrometry.util.starutil_numpy import *
+
+def _read_tan_wcs(sourcefn, ext, hdr=None, W=None, H=None):
+    from astrometry.util.util import Tan
+    wcs = Tan(sourcefn, ext)
+    return wcs
+
+def halfsize(sourcefn, halffn, read_wcs=None):
+    I,hdr = fitsio.read(sourcefn, header=True)
+    H,W = I.shape
+    # make even size; smooth down
+    if H % 2 == 1:
+        I = I[:-1,:]
+    if W % 2 == 1:
+        I = I[:,:-1]
+
+    # ??
+    #im = gaussian_filter(I, 1.)
+    im = I
+
+    # bin (excluding NaN)
+    q1 = im[::2,::2]
+    q2 = im[1::2,::2]
+    q3 = im[1::2,1::2]
+    q4 = im[::2,1::2]
+
+    f1 = np.isfinite(q1)
+    f2 = np.isfinite(q2)
+    f3 = np.isfinite(q3)
+    f4 = np.isfinite(q4)
+
+    I2 = (np.where(f1, q1, 0) +
+          np.where(f2, q2, 0) +
+          np.where(f3, q3, 0) +
+          np.where(f4, q4, 0)) / np.maximum(1, f1+f2+f3+f4)
+    #I2 = (im[::2,::2] + im[1::2,::2] + im[1::2,1::2] + im[::2,1::2])/4.
+    I2 = I2.astype(np.float32)
+    # shrink WCS too
+    if read_wcs is None:
+        read_wcs = _read_tan_wcs
+    wcs = read_wcs(sourcefn, 0, hdr=hdr, W=W, H=H)
+    # include the even size clip; this may be a no-op
+    H,W = im.shape
+    wcs = wcs.get_subimage(0, 0, W, H)
+    subwcs = wcs.scale(0.5)
+    hdr = fitsio.FITSHDR()
+    subwcs.add_to_header(hdr)
+    dirnm = os.path.dirname(halffn)
+    f,tmpfn = tempfile.mkstemp(suffix='.fits.tmp', dir=dirnm)
+    os.close(f)
+    # To avoid overwriting the (empty) temp file (and fitsio
+    # printing "Removing existing file")
+    os.unlink(tmpfn)
+    fitsio.write(tmpfn, I2, header=hdr, clobber=True)
+    os.rename(tmpfn, halffn)
+    print('Wrote', halffn)
+
 
 ver = 1
 patdata = dict(ver=ver)
@@ -63,58 +120,101 @@ for band in [1,2,3,4]:
 #for band in [1,2]:
     outfn = basepat % (band, scalelevel, H)
     if os.path.exists(outfn):
-        outfn = outfn.replace('.fits', '-u.fits')
         img = fitsio.read(outfn)
 
-        fn = 'hammertime.wcs'
-        wcs.writeto(fn)
-        hdr = fitsio.read_header(fn)
-        hdr['CTYPE1'] = 'GLON-AIT'
-        hdr['CTYPE2'] = 'GLAT-AIT'
-        fitsio.write(outfn.replace('.fits','-wcs.fits'), img, header=hdr, clobber=True)
+        #outfn = outfn.replace('.fits', '-u.fits')
+        # fn = 'hammertime.wcs'
+        # wcs.writeto(fn)
+        # hdr = fitsio.read_header(fn)
+        # hdr['CTYPE1'] = 'GLON-AIT'
+        # hdr['CTYPE2'] = 'GLAT-AIT'
+        # fitsio.write(outfn.replace('.fits','-wcs.fits'), img, header=hdr, clobber=True)
 
         imgs.append(img)
         continue
 
     img = np.zeros((H,W), np.float32)
     uimg = np.zeros((H,W), np.float32)
-    nimg = np.zeros((H,W), np.uint8)
+    nimg = np.zeros((H,W), np.uint32)
 
     for i,brick in enumerate(T.coadd_id):
         # unWISE
         # fn = os.path.join('data/scaled/unwise/%iw%i' %
         #                   (scalelevel, band), brick[:3],
         #                   'unwise-%s-w%i.fits' % (brick, band))
+
         # AllWISE
-        fn = os.path.join('wise-coadds/%s/%s/%s_ac51/%s_ac51-w%i-int-3.fits' %
-                          (brick[:2], brick[:4], brick, brick, band))
-        print 'Reading', fn
+        qfn = os.path.join('wise-coadds-quarter',
+                           '%s_ac51-w%i-int-3.fits' % (brick, band))
+        hfn = os.path.join('wise-coadds-half',
+                           '%s_ac51-w%i-int-3.fits' % (brick, band))
+        fn = os.path.join('wise-coadds', brick[:2], brick[:4], '%s_ac51' % brick,
+                          '%s_ac51-w%i-int-3.fits' % (brick, band))
+
+        if not os.path.exists(qfn):
+            if not os.path.exists(hfn):
+                halfsize(fn, hfn)
+                #print('Wrote', hfn)
+            halfsize(hfn, qfn)
+            #print('Wrote', qfn)
+        fn = qfn
+
+        #fn = os.path.join('wise-coadds', brick[:2], brick[:4], '%s_ac51' % brick,
+        #                  '%s_ac51-w%i-int-3.fits' % (brick, band))
+                 
+        print('Reading', fn)
         I = fitsio.read(fn)
         bwcs = Tan(fn, 0)
         bh,bw = I.shape
+        print('Image shape', bh,bw)
+
+        assert(np.all(np.isfinite(I)))
     
         xx,yy = np.meshgrid(np.arange(bw), np.arange(bh))
         rr,dd = bwcs.pixelxy2radec(xx, yy)
+        #print('RA,Dec range', rr.min(), rr.max(), dd.min(), dd.max())
         ll,bb = radectolb(rr.ravel(), dd.ravel())
+        #print('L,B range', ll.min(), ll.max(), bb.min(), bb.max())
         ll = ll.reshape(rr.shape)
         bb = bb.reshape(rr.shape)
     
         ok,ox,oy = wcs.radec2pixelxy(ll, bb)
+        #print('Unique ok:', np.unique(ok))
         ox = np.round(ox - 1).astype(int)
         oy = np.round(oy - 1).astype(int)
-        K = (ox >= 0) * (ox < W) * (oy >= 0) * (oy < H) * (ok == 0)
+        K = (ox >= 0) * (ox < W) * (oy >= 0) * (oy < H) * ok
         if np.sum(K) == 0:
             # no overlap
+            print('No overlap')
             continue
     
-        img [oy[K], ox[K]] += I[K]
-        uimg[oy[K], ox[K]] += (I[K] * (nimg[oy[K], ox[K]] == 0))
-        nimg[oy[K], ox[K]] += 1
+        # img [oy[K], ox[K]] += I[K]
+        # uimg[oy[K], ox[K]] += (I[K] * (nimg[oy[K], ox[K]] == 0))
+        # nimg[oy[K], ox[K]] += 1
+
+        np.add.at( img, (oy[K], ox[K]), I[K])
+        np.add.at(nimg, (oy[K], ox[K]), 1)
+
+        # for y,x,im in zip(oy[K],ox[K],I[K]):
+        #     img [y,x] += im
+        #     uimg[y,x] += im * (nimg[y,x] == 0)
+        #     nimg[y,x] += 1
+
+        #if i % 10 == 0:
+        #    fitsio.write('interim.fits', img / np.maximum(nimg, 1), clobber=True)
+
             
     img /= np.maximum(nimg, 1)
-    fitsio.write(outfn, img, clobber=True)
-    fitsio.write(outfn.replace('.fits', '-u.fits'), uimg, clobber=True)
-    fitsio.write(outfn.replace('.fits', '-n.fits'), nimg, clobber=True)
+
+    fn = 'hammertime.wcs'
+    wcs.writeto(fn)
+    hdr = fitsio.read_header(fn)
+    hdr['CTYPE1'] = 'GLON-AIT'
+    hdr['CTYPE2'] = 'GLAT-AIT'
+
+    fitsio.write(outfn, img, header=hdr, clobber=True)
+    #fitsio.write(outfn.replace('.fits', '-u.fits'), uimg, header=hdr, clobber=True)
+    fitsio.write(outfn.replace('.fits', '-n.fits'), nimg, header=hdr, clobber=True)
     imgs.append(img)
 
 
