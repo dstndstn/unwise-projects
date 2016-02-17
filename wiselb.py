@@ -14,7 +14,6 @@ from astrometry.util.fits import *
 from astrometry.util.resample import *
 from astrometry.util.starutil_numpy import *
 
-
 ver = 1
 patdata = dict(ver=ver)
 
@@ -40,8 +39,13 @@ else:
     H = W/2
     zoom = 360. / width
     wcs = anwcs_create_hammer_aitoff(0., 0., zoom, W, H, FALSE)
-    basepat = 'w%i-lbzoom-%i-%i.fits'
-    jpegfn = 'wlbzoom.jpg'
+
+    # AllWISE coadds
+    basepat = 'allwise-w%i-lbzoom-%i-%i.fits'
+    jpegfn = 'allwise-wlbzoom.jpg'
+
+    #basepat = 'w%i-lbzoom-%i-%i.fits'
+    #jpegfn = 'wlbzoom.jpg'
     scalelevel = 5
     
 from decals import settings
@@ -50,12 +54,13 @@ from map.views import _unwise_to_rgb
 #w1bfn = 'w1lb-%i.fits' % basescale
 #w2bfn = 'w2lb-%i.fits' % basescale
 
-T = fits_table('allsky-atlas.fits')
+#T = fits_table('allsky-atlas.fits')
+T = fits_table('wisex-atlas.fits')
 
 imgs = []
 
-#for band in [1,2,3,4]:
-for band in [1,2]:
+for band in [1,2,3,4]:
+#for band in [1,2]:
     outfn = basepat % (band, scalelevel, H)
     if os.path.exists(outfn):
         outfn = outfn.replace('.fits', '-u.fits')
@@ -76,9 +81,13 @@ for band in [1,2]:
     nimg = np.zeros((H,W), np.uint8)
 
     for i,brick in enumerate(T.coadd_id):
-        fn = os.path.join('data/scaled/unwise/%iw%i' %
-                          (scalelevel, band), brick[:3],
-                          'unwise-%s-w%i.fits' % (brick, band))
+        # unWISE
+        # fn = os.path.join('data/scaled/unwise/%iw%i' %
+        #                   (scalelevel, band), brick[:3],
+        #                   'unwise-%s-w%i.fits' % (brick, band))
+        # AllWISE
+        fn = os.path.join('wise-coadds/%s/%s/%s_ac51/%s_ac51-w%i-int-3.fits' %
+                          (brick[:2], brick[:4], brick, brick, band))
         print 'Reading', fn
         I = fitsio.read(fn)
         bwcs = Tan(fn, 0)
@@ -109,7 +118,7 @@ for band in [1,2]:
     imgs.append(img)
 
 
-w1,w2 = imgs
+w1,w2 = imgs[:2]
 S,Q = 3000,25
 rgb = _unwise_to_rgb([w1, w2], S=[S]*len(imgs), Q=Q)
 plt.imsave(jpegfn, rgb, origin='lower')

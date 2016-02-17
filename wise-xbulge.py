@@ -2,10 +2,10 @@ from __future__ import print_function
 import sys
 import matplotlib
 matplotlib.use('Agg')
-matplotlib.rc('text', usetex=True)
-matplotlib.rc('font', family='serif')
-matplotlib.rc('font', serif='computer modern roman')
-matplotlib.rc('font', **{'sans-serif': 'computer modern sans serif'})
+# matplotlib.rc('text', usetex=True)
+# matplotlib.rc('font', family='serif')
+# matplotlib.rc('font', serif='computer modern roman')
+# matplotlib.rc('font', **{'sans-serif': 'computer modern sans serif'})
 import pylab as plt
 import fitsio
 from astrometry.util.util import *
@@ -18,7 +18,7 @@ from astrometry.libkd.spherematch import *
 
 from scipy.ndimage import median_filter, gaussian_filter
 
-if False:
+if True:
     T = fits_table('allsky-atlas.fits')
     print(len(T), 'tiles')
     
@@ -49,16 +49,20 @@ if False:
     plt.clf()
     plt.plot(T.ra[I], T.dec[I], 'b.')
     plt.savefig('2.png')
-    
-    if False:
+
+    if True:
         for t in T[I]:
             brick = t.coadd_id
-            for band in [1,2]:
+            for band in [1,2,3,4]:
                 dirnm = '%s/%s/%s_ac51' % (brick[:2], brick[:4], brick)
                 #print('mkdir -p %s' % dirnm)
-                print('wget --continue -r -nH --cut-dirs 5 http://irsa.ipac.caltech.edu/ibe/data/wise/merge/merge_p3am_cdd/%s/%s_ac51-w%i-int-3.fits'
+                print('wget --continue -r -nH --cut-dirs 4 http://irsa.ipac.caltech.edu/ibe/data/wise/merge/merge_p3am_cdd/%s/%s_ac51-w%i-int-3.fits'
                       % (dirnm, brick, band))
 
+    T.cut(I)
+    T.writeto('wisex-atlas.fits')
+
+sys.exit(0)
 
 
 fns = ['w1-lbzoom-5-1800-u-wcs.fits',

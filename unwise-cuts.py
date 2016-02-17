@@ -194,6 +194,9 @@ def all_matches_near(catfn, radius, atlasfn, photdir, outfn, projname, **kwargs)
     WW = []
     for t in T:
         fn = os.path.join(photdir, 'phot-%s.fits' % t.coadd_id)
+        if not os.path.exists(fn):
+            print('Does not exist:', fn)
+            continue
         W = fits_table(fn)
         print(len(W), 'from', fn)
         if len(W) == 0:
@@ -233,9 +236,25 @@ def hoyle():
     all_matches_near('target_list_SDSS_DR7.fits', 1., 'sdss-dr10d-tiles.fits',
                     'sdss-dr10d-phot', 'hoyle-matches.fits', 'hoyle', nearest=True)
 
+def amaral():
+    all_matches_near('farnes.fits', 3., 'sdss-dr10d-tiles.fits',
+                     'sdss-dr10d-phot', 'farnes-nearest-matches.fits', 'farnes-nearest',
+                     nearest=True)
+    all_matches_near('farnes.fits', 3., 'sdss-dr10d-tiles.fits',
+                     'sdss-dr10d-phot', 'farnes-all-matches.fits', 'farnes-all')
+
+    all_matches_near('taylor.fits', 3., 'sdss-dr10d-tiles.fits',
+                     'sdss-dr10d-phot', 'taylor-nearest-matches.fits', 'taylor-nearest',
+                     nearest=True)
+    all_matches_near('taylor.fits', 3., 'sdss-dr10d-tiles.fits',
+                     'sdss-dr10d-phot', 'taylor-all-matches.fits', 'taylor-all')
+
 
 if __name__ == '__main__':
     #hoyle()
+
+    amaral()
+    sys.exit(0)
 
     T = fits_table('target_list_SDSS_DR7.fits')
     print(len(T), 'targets')
