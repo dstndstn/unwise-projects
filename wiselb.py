@@ -98,11 +98,11 @@ else:
     wcs = anwcs_create_hammer_aitoff(0., 0., zoom, W, H, FALSE)
 
     # AllWISE coadds
-    basepat = 'allwise-w%i-lbzoom-%i-%i.fits'
-    jpegfn = 'allwise-wlbzoom.png'
-
-    #basepat = 'unwise-w%i-lbzoom-%i-%i.fits'
+    #basepat = 'allwise-w%i-lbzoom-%i-%i.fits'
     #jpegfn = 'allwise-wlbzoom.png'
+
+    basepat = 'unwise-w%i-lbzoom-%i-%i.fits'
+    jpegfn = 'unwise-wlbzoom.png'
 
     #basepat = 'w%i-lbzoom-%i-%i.fits'
     #jpegfn = 'wlbzoom.jpg'
@@ -119,7 +119,7 @@ T = fits_table('wisex-atlas.fits')
 
 imgs = []
 
-for band in [1,2,3,4]:
+for band in [3,4, 1,2]:
 #for band in [1,2]:
     outfn = basepat % (band, scalelevel, H)
     if os.path.exists(outfn):
@@ -141,18 +141,27 @@ for band in [1,2,3,4]:
     nimg = np.zeros((H,W), np.uint32)
 
     for i,brick in enumerate(T.coadd_id):
-        # unWISE
+        # unWISE viewer-scaled
         # fn = os.path.join('data/scaled/unwise/%iw%i' %
         #                   (scalelevel, band), brick[:3],
         #                   'unwise-%s-w%i.fits' % (brick, band))
 
-        # AllWISE
-        qfn = os.path.join('wise-coadds-quarter',
-                           '%s_ac51-w%i-int-3.fits' % (brick, band))
+        # unWISE
+        fn = os.path.join('unwise-coadds', brick[:3], brick,
+                          'unwise-%s-w%i-img-u.fits' % (brick, band))
+        qfn = os.path.join('unwise-coadds-quarter',
+                           'unwise-%s-w%i.fits' % (brick, band))
         hfn = os.path.join('wise-coadds-half',
-                           '%s_ac51-w%i-int-3.fits' % (brick, band))
-        fn = os.path.join('wise-coadds', brick[:2], brick[:4], '%s_ac51' % brick,
-                          '%s_ac51-w%i-int-3.fits' % (brick, band))
+                           'unwise-%s-w%i.fits' % (brick, band))
+
+
+        # AllWISE
+        # qfn = os.path.join('wise-coadds-quarter',
+        #                    '%s_ac51-w%i-int-3.fits' % (brick, band))
+        # hfn = os.path.join('wise-coadds-half',
+        #                    '%s_ac51-w%i-int-3.fits' % (brick, band))
+        # fn = os.path.join('wise-coadds', brick[:2], brick[:4], '%s_ac51' % brick,
+        #                   '%s_ac51-w%i-int-3.fits' % (brick, band))
 
         if not os.path.exists(qfn):
             if not os.path.exists(hfn):
