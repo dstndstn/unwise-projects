@@ -99,7 +99,10 @@ else:
 
     # AllWISE coadds
     basepat = 'allwise-w%i-lbzoom-%i-%i.fits'
-    jpegfn = 'allwise-wlbzoom.jpg'
+    jpegfn = 'allwise-wlbzoom.png'
+
+    #basepat = 'unwise-w%i-lbzoom-%i-%i.fits'
+    #jpegfn = 'allwise-wlbzoom.png'
 
     #basepat = 'w%i-lbzoom-%i-%i.fits'
     #jpegfn = 'wlbzoom.jpg'
@@ -219,7 +222,42 @@ for band in [1,2,3,4]:
 
 
 w1,w2 = imgs[:2]
+
+# AllWISE zeropoints: W1 = 20.5, W2 = 19.5
+w1 /= 10.**((20.5 - 22.5)/2.5)
+w2 /= 10.**((19.5 - 22.5)/2.5)
+
+w1 /= 4
+w2 /= 4
+
+# Just for kicks?
+w1 /= 2
+w2 /= 2
+
+fns = ['w1-lbzoom-5-1800-u-wcs.fits',
+       'w2-lbzoom-5-1800-u-wcs.fits',]
+u1,u2 = [fitsio.read(fn) for fn in fns]
+
+plt.clf()
+plt.loglog(np.maximum(1000, w1.ravel()), np.maximum(1000, u1.ravel()), 'k.', alpha=0.01)
+plt.savefig('w1.png')
+plt.clf()
+plt.loglog(np.maximum(1000, w2.ravel()), np.maximum(1000, u2.ravel()), 'k.', alpha=0.01)
+plt.savefig('w2.png')
+
+
 S,Q = 3000,25
-rgb = _unwise_to_rgb([w1, w2], S=[S]*len(imgs), Q=Q)
+rgb = _unwise_to_rgb([w1, w2], S=[S,S], Q=Q)
 plt.imsave(jpegfn, rgb, origin='lower')
 
+
+#w1 -= np.median(w1[600:1200, 1200:2400])
+#w2 -= np.median(w2[600:1200, 1200:2400])
+
+w1 -= np.percentile(w1[600:1200, 1200:2400], 25)
+w2 -= np.percentile(w2[600:1200, 1200:2400], 25)
+
+
+S,Q = 3000,25
+rgb = _unwise_to_rgb([w1, w2], S=[S,S], Q=Q)
+plt.imsave(jpegfn.replace('.png','-2.png'), rgb, origin='lower')
