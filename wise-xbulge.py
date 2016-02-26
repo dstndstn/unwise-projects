@@ -53,23 +53,74 @@ def resid_rgb(resid1, resid2):
     RGB = np.dstack([R,G,B])
     RGB = (np.clip((RGB + 1.) / 2., 0., 1.) * 255.99).astype(np.uint8)
     return RGB
-    
+
 
 if True:
+    from astrometry.util.file import *
+    from tractor import *
+    from tractor.galaxy import *
+
+    disable_galaxy_cache()
+    ps = PlotSequence('xb')
+
+    X = unpickle_from_file('sample.pickle')
+
+    class AsymmetricTractor(Tractor):
+        def getLogLikelihood(self):
+            chisq = 0.
+            for i,chi in enumerate(self.getChiImages()):
+                # chi = (img - mod) / error
+                #chisq += (chi.astype(float) ** 2).sum()
+
+                # positive residuals: unexplained flux penalized less
+                I = (chi > 0)
+                chisq += ((0.5 * chi[I]) ** 2).sum()
+                I = (chi < 0)
+                chisq += ((1.0 * chi[I]) ** 2).sum()
+            return -0.5 * chisq
+
+    tr = X['tractor']
+    at = AsymmetricTractor(tr.images, tr.catalog)
+    at.freezeParam('images')
+
+    at.printThawedParams()
+        
+    sys.exit(0)
+    
+        
+if True:
+    import emcee
+    from tractor import *
+    from tractor.galaxy import *
+
+    disable_galaxy_cache()
+    
+    ps = PlotSequence('xb')
+    
     # ExpGalaxy at pixel (423.64, 444.09) with Fluxes: w1=9.06254e+08, w2=1.02335e+09 and Galaxy Shape: re=400.31, ab=0.38, phi=89.8
     wcs = anwcs('wcs.fits')
     xlo,ylo = 1362, 450
     mask   = fitsio.read('mask.fits').astype(np.float32)
     w1 = fitsio.read('data-w1.fits')
-    w2 = fitsio.read('data-w1.fits')
+    w2 = fitsio.read('data-w2.fits')
 
     ie1 = np.zeros_like(w1)
     ie2 = np.zeros_like(w2)
+
+    for img,ie in [(w1,ie1), (w2,ie2)]:
+        # # Estimate per-pixel noise via Blanton's 5-pixel MAD
+        slice1 = (slice(0,-5,10),slice(0,-5,10))
+        slice2 = (slice(5,None,10),slice(5,None,10))
+        mad = np.median(np.abs(img[slice1] - img[slice2]).ravel())
+        sig1 = 1.4826 * mad / np.sqrt(2.)
+        print('sig1 estimate:', sig1)
+        ie += 1. / sig1
+        ie[mask == 0] = 0
     
     tim1 = Image(data=w1, inverr=ie1,
-             psf=NCircularGaussianPSF([1.],[1.]),
-             photocal=LinearPhotoCal(1., 'w1'))
-    tim2 = Image(data=w2masked, inverr=ie2,
+                 psf=NCircularGaussianPSF([1.],[1.]),
+                 photocal=LinearPhotoCal(1., 'w1'))
+    tim2 = Image(data=w2, inverr=ie2,
                  psf=NCircularGaussianPSF([1.],[1.]),
                  photocal=LinearPhotoCal(1., 'w2'))
 
@@ -84,9 +135,84 @@ if True:
     gal = ExpGalaxy(PixPos(cx, cy), Fluxes(w1=flux1, w2=flux2), shape)
 
     tractor = Tractor([tim1, tim2],[gal])
+    tractor.freezeParam('images')
 
-
+    # Create emcee sampler
+    nw = 30
+    ndim = len(tractor.getParams())
+    print('N dim:', ndim)
     
+    sampler = emcee.EnsembleSampler(nw, ndim, tractor)
+
+    p0 = tractor.getParams()
+    #std = tractor.getStepSizes()
+    std = np.array([1.0, 1.0, 1e7, 1e7, 0.01, 0.01, 0.01])
+    pp = emcee.utils.sample_ball(p0, std, size=nw)
+
+    print('Fitting params: (%i):' % len(p0))
+    tractor.printThawedParams()
+
+    print('Step sizes:', std)
+    
+    nsteps = 100
+    
+    allpp = np.zeros((nsteps, nw, ndim), np.float32)
+    alllnp = np.zeros((nsteps, nw), np.float32)
+
+    from astrometry.util.file import *
+    pickle_to_file(dict(allpp=allpp, alllnp=alllnp, tractor=tractor),
+                   'sample.pickle')
+
+    rstate = None
+    lnp = None
+    for step in range(nsteps):
+        print('Taking step', step)
+        pp,lnp,rstate = sampler.run_mcmc(pp, 1, lnprob0=lnp, rstate0=rstate)
+        print('Max lnprob:', np.max(lnp))
+        i = np.argmax(lnp.ravel())
+        pbest = pp[i,:]
+        print('Best params:', pbest)
+
+        tractor.setParams(pbest)
+        mod1 = tractor.getModelImage(0)
+        resid1 = w1 - mod1
+        mod2 = tractor.getModelImage(1)
+        resid2 = w2 - mod2
+        
+        rgb = resid_rgb(resid1, resid2)
+        plt.clf()
+        dimshow(rgb)
+        plt.title('Residuals')
+        lbticks(wcs, xlo,ylo)
+        plt.savefig('resid.png')
+        
+        allpp[step,:,:] = pp
+        alllnp[step,:] = lnp
+
+        plt.figure(1)
+        plt.clf()
+        plt.plot(alllnp[:step+1,:], 'b', alpha=0.5)
+        #mx = alllnp.max()
+        #plt.ylim(mx-20, mx+5)
+        plt.title('log posterior')
+        plt.savefig('lnp.png')
+
+        if step % 10 == 9:
+            import triangle
+            X = allpp[:step+1, :,:].reshape(((step+1) * nw, ndim))
+            print('std in X:', np.std(X, axis=0))
+            plt.figure(2)
+            plt.clf()
+            triangle.corner(X, labels=tractor.getParamNames(), plot_contours=False)
+            plt.savefig('corner.png')
+            plt.clf()
+            plt.figure(1)
+
+    from astrometry.util.file import *
+    pickle_to_file(dict(allpp=allpp, alllnp=alllnp, tractor=tractor),
+                   'sample.pickle')
+            
+    sys.exit(0)
 
 if False:
     T = fits_table('allsky-atlas.fits')
