@@ -87,60 +87,6 @@ if True:
 
 
     
-if False:
-    from map.views import _unwise_to_rgb
-
-    fns = ['w1-lbzoom-5-1800-u-wcs.fits',]
-    wcs = anwcs(fns[0])
-
-    xlo,ylo = 1362, 450
-    
-    resid1 = fitsio.read('resid1.fits')
-    resid2 = fitsio.read('resid2.fits')
-    mask   = fitsio.read('mask.fits')
-
-
-    # plt.clf()
-    # plt.hist(R.ravel(), range=(-1,1), bins=100, histtype='step', color='r')
-    # plt.hist(G.ravel(), range=(-1,1), bins=100, histtype='step', color='g')
-    # plt.hist(B.ravel(), range=(-1,1), bins=100, histtype='step', color='b')
-    # #dimshow(rgb)
-    # plt.title('Residuals (smoothed)')
-    # lbticks(wcs, xlo,ylo)
-    # plt.savefig('xbulge-fit-smooth3.pdf')
-
-    rgb = resid_rgb(resid1, resid2)
-    
-    plt.clf()
-    dimshow(rgb)
-    plt.title('Residuals')
-    lbticks(wcs, xlo,ylo)
-    plt.savefig('xbulge-fit-resid.pdf')
-    
-    fr1 = median_filter(resid1*mask, size=50)
-    fr2 = median_filter(resid2*mask, size=50)
-    
-    rgb = resid_rgb(fr1, fr2)
-    plt.clf()
-    dimshow(rgb)
-    plt.title('Residuals (smoothed)')
-    lbticks(wcs, xlo,ylo)
-    plt.savefig('xbulge-fit-smooth.pdf')
-    
-    from astrometry.util.util import median_smooth
-    fr1 = np.zeros_like(resid1)
-    fr2 = np.zeros_like(resid2)
-    median_smooth(resid1, np.logical_not(mask), 25, fr1)
-    median_smooth(resid2, np.logical_not(mask), 25, fr2)
-    
-    rgb = resid_rgb(fr1, fr2)
-    plt.clf()
-    dimshow(rgb)
-    plt.title('Residuals (smoothed)')
-    lbticks(wcs, xlo,ylo)
-    plt.savefig('xbulge-fit-smooth2.pdf')
-    
-    sys.exit(0)
 
 if False:
     T = fits_table('allsky-atlas.fits')
