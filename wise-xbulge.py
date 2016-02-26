@@ -18,7 +18,131 @@ from astrometry.libkd.spherematch import *
 
 from scipy.ndimage import median_filter, gaussian_filter
 
+
+
+def lbticks(wcs, xlo, ylo):
+    ax = plt.axis()
+    tv = [-15, -10, -5, 0, 5, 10, 15]
+    xx = [wcs.radec2pixelxy(v, 0)[-2] - xlo for v in tv]
+    yy = [wcs.radec2pixelxy(0, v)[-1] - ylo for v in tv]
+    plt.xticks(xx, tv)
+    plt.yticks(yy, tv)
+    plt.xlabel('Galactic longitude $\ell$ (deg)')
+    plt.ylabel('Galactic latitude $b$ (deg)')
+    plt.axis(ax)
+
+
+
+def resid_rgb(resid1, resid2):
+    S,Q = 3000,25
+    alpha = 5.
+    
+    w1,w2 = resid1,resid2
+    S1,S2 = S,S
+    b = w1 / S1
+    r = w2 / S2
+    g = (r + b) / 2.
+
+    I = (r+g+b)/3.
+    fI = np.arcsinh(alpha * Q * I) / np.sqrt(Q)
+
+    R = fI * r / I
+    G = fI * g / I
+    B = fI * b / I
+
+    RGB = np.dstack([R,G,B])
+    RGB = (np.clip((RGB + 1.) / 2., 0., 1.) * 255.99).astype(np.uint8)
+    return RGB
+    
+
 if True:
+    # ExpGalaxy at pixel (423.64, 444.09) with Fluxes: w1=9.06254e+08, w2=1.02335e+09 and Galaxy Shape: re=400.31, ab=0.38, phi=89.8
+    wcs = anwcs('wcs.fits')
+    xlo,ylo = 1362, 450
+    mask   = fitsio.read('mask.fits').astype(np.float32)
+    w1 = fitsio.read('data-w1.fits')
+    w2 = fitsio.read('data-w1.fits')
+
+    ie1 = np.zeros_like(w1)
+    ie2 = np.zeros_like(w2)
+    
+    tim1 = Image(data=w1, inverr=ie1,
+             psf=NCircularGaussianPSF([1.],[1.]),
+             photocal=LinearPhotoCal(1., 'w1'))
+    tim2 = Image(data=w2masked, inverr=ie2,
+                 psf=NCircularGaussianPSF([1.],[1.]),
+                 photocal=LinearPhotoCal(1., 'w2'))
+
+    # ExpGalaxy at pixel (423.64, 444.09) with Fluxes: w1=9.06254e+08, w2=1.02335e+09 and Galaxy Shape: re=400.31, ab=0.38, phi=89.8
+    cx,cy = 423.64, 444.09
+    flux1 = 9.06e8
+    flux2 = 1.02e9
+
+    #shape = GalaxyShape(400.31, 0.38, 89.8)
+    shape = EllipseESoft.fromRAbPhi(400.31, 0.38, 89.8)
+    
+    gal = ExpGalaxy(PixPos(cx, cy), Fluxes(w1=flux1, w2=flux2), shape)
+
+    tractor = Tractor([tim1, tim2],[gal])
+
+
+    
+if False:
+    from map.views import _unwise_to_rgb
+
+    fns = ['w1-lbzoom-5-1800-u-wcs.fits',]
+    wcs = anwcs(fns[0])
+
+    xlo,ylo = 1362, 450
+    
+    resid1 = fitsio.read('resid1.fits')
+    resid2 = fitsio.read('resid2.fits')
+    mask   = fitsio.read('mask.fits')
+
+
+    # plt.clf()
+    # plt.hist(R.ravel(), range=(-1,1), bins=100, histtype='step', color='r')
+    # plt.hist(G.ravel(), range=(-1,1), bins=100, histtype='step', color='g')
+    # plt.hist(B.ravel(), range=(-1,1), bins=100, histtype='step', color='b')
+    # #dimshow(rgb)
+    # plt.title('Residuals (smoothed)')
+    # lbticks(wcs, xlo,ylo)
+    # plt.savefig('xbulge-fit-smooth3.pdf')
+
+    rgb = resid_rgb(resid1, resid2)
+    
+    plt.clf()
+    dimshow(rgb)
+    plt.title('Residuals')
+    lbticks(wcs, xlo,ylo)
+    plt.savefig('xbulge-fit-resid.pdf')
+    
+    fr1 = median_filter(resid1*mask, size=50)
+    fr2 = median_filter(resid2*mask, size=50)
+    
+    rgb = resid_rgb(fr1, fr2)
+    plt.clf()
+    dimshow(rgb)
+    plt.title('Residuals (smoothed)')
+    lbticks(wcs, xlo,ylo)
+    plt.savefig('xbulge-fit-smooth.pdf')
+    
+    from astrometry.util.util import median_smooth
+    fr1 = np.zeros_like(resid1)
+    fr2 = np.zeros_like(resid2)
+    median_smooth(resid1, np.logical_not(mask), 25, fr1)
+    median_smooth(resid2, np.logical_not(mask), 25, fr2)
+    
+    rgb = resid_rgb(fr1, fr2)
+    plt.clf()
+    dimshow(rgb)
+    plt.title('Residuals (smoothed)')
+    lbticks(wcs, xlo,ylo)
+    plt.savefig('xbulge-fit-smooth2.pdf')
+    
+    sys.exit(0)
+
+if False:
     T = fits_table('allsky-atlas.fits')
     print(len(T), 'tiles')
     
@@ -62,7 +186,7 @@ if True:
     T.cut(I)
     T.writeto('wisex-atlas.fits')
 
-sys.exit(0)
+    sys.exit(0)
 
 
 fns = ['w1-lbzoom-5-1800-u-wcs.fits',
@@ -96,7 +220,7 @@ plt.figure(1, figsize=(10,5))
 plt.subplots_adjust(left=0.1, right=0.95, bottom=0.1, top=0.95)
 
 plt.figure(2, figsize=(5,5))
-plt.subplots_adjust(left=0.1, right=0.95, bottom=0.1, top=0.95)
+plt.subplots_adjust(left=0.11, right=0.96, bottom=0.1, top=0.95)
 
 plt.figure(1)
 plt.clf()
@@ -111,6 +235,9 @@ plt.ylabel('Galactic latitude $b$ (deg)')
 ps.savefig()
 
 w1,w2 = imgs
+w1orig = w1.copy()
+w2orig = w2.copy()
+
 medy1 = np.median(w1, axis=1)
 medy2 = np.median(w2, axis=1)
 
@@ -148,20 +275,11 @@ xhi = int(np.ceil (max(x1,x2,x3,x4)))
 ylo = int(np.floor(min(y1,y2,y3,y4)))
 yhi = int(np.ceil (max(y1,y2,y3,y4)))
 
+print('xlo,ylo', xlo, ylo)
+
 w1 = w1[ylo:yhi, xlo:xhi]
 w2 = w2[ylo:yhi, xlo:xhi]
 
-
-def lbticks(wcs, xlo, ylo):
-    ax = plt.axis()
-    tv = [-15, -10, -5, 0, 5, 10, 15]
-    xx = [wcs.radec2pixelxy(v, 0)[-2] - xlo for v in tv]
-    yy = [wcs.radec2pixelxy(0, v)[-1] - ylo for v in tv]
-    plt.xticks(xx, tv)
-    plt.yticks(yy, tv)
-    plt.xlabel('Galactic longitude $\ell$ (deg)')
-    plt.ylabel('Galactic latitude $b$ (deg)')
-    plt.axis(ax)
 
 
 # fn = 'resid1.fits'
@@ -291,14 +409,94 @@ mn1,mx1 = np.percentile(w1, [25,98])
 # plt.colorbar()
 # ps.savefig()
 
+plt.figure(2)
+
 from tractor import *
 from tractor.galaxy import *
 
-tim = Image(data=np.zeros_like(w1), inverr=np.ones_like(w1),
-            psf=NCircularGaussianPSF([1.],[1.]))
-gal = ExpGalaxy(PixPos(cx, cy), Flux(w1.sum()),
+w1masked = w1orig.copy()[ylo:yhi, xlo:xhi]
+w2masked = w2orig.copy()[ylo:yhi, xlo:xhi]
+
+w1mag = -2.5*(np.log10(w1masked) - 9.)
+w2mag = -2.5*(np.log10(w2masked) - 9.)
+
+plt.clf()
+plt.hist((w1mag - w2mag).ravel(), range=(-1,1), bins=100)
+plt.xlabel('W1 - W2')
+ps.savefig()
+
+# plt.clf()
+# loghist((w1mag - w2mag).ravel(), w1mag.ravel(), nbins=100,
+#         range=((-1,1),np.percentile(w1mag.ravel(), [10,90])))
+# plt.xlabel('W1 - W2')
+# plt.ylabel('W1')
+# ps.savefig()
+
+# plt.clf()
+# plt.imshow(np.abs((w1mag - w2mag) - 0) > 0.5)
+# plt.title('Color mask')
+# ps.savefig()
+
+cf = median_filter(w1mag - w2mag, size=5)
+# plt.clf()
+# plt.imshow(np.abs(cf) > 0.5)
+# plt.title('Color mask (2)')
+# ps.savefig()
+
+plt.clf()
+rgb = _unwise_to_rgb([w1masked, w2masked], S=[S,S], Q=Q)
+dimshow(rgb)
+plt.title('Data')
+lbticks(wcs, xlo,ylo)
+ps.savefig()
+plt.savefig('xbulge-fit-data.pdf')
+
+mlo,mhi = np.percentile(cf, [5,95])
+print('W1 - W2 color masks:', mlo,mhi)
+mask = (cf > mlo) * (cf < mhi)
+#mask = (np.abs(cf) < 0.5)
+plt.clf()
+rgb = _unwise_to_rgb([w1masked * mask, w2masked * mask], S=[S,S], Q=Q)
+dimshow(rgb)
+lbticks(wcs, xlo,ylo)
+plt.title('Data (masked)')
+ps.savefig()
+plt.savefig('xbulge-fit-masked.pdf')
+
+# slc = slice(cy - 25, cy + 25)
+# w1masked[slc, :] = 0.
+# ie1 = np.ones_like(w1masked)
+# ie1[slc,:] = 0.
+# 
+# slc = slice(cy - 25, cy + 25)
+# w2masked[slc, :] = 0.
+# ie2 = np.ones_like(w2masked)
+# ie2[slc,:] = 0.
+
+ie = mask.astype(np.float32)
+ie1 = ie2 = ie
+
+fitsio.write('w1masked.fits', w1masked * mask, clobber=True)
+fitsio.write('w2masked.fits', w2masked * mask, clobber=True)
+plt.imsave('rgb-masked.jpg', rgb)
+
+
+tim1 = Image(data=w1masked, inverr=ie1,
+             psf=NCircularGaussianPSF([1.],[1.]),
+             photocal=LinearPhotoCal(1., 'w1'))
+tim2 = Image(data=w2masked, inverr=ie2,
+             psf=NCircularGaussianPSF([1.],[1.]),
+             photocal=LinearPhotoCal(1., 'w2'))
+gal = ExpGalaxy(PixPos(cx, cy), Fluxes(w1=w1.sum(), w2=w2.sum()),
                 GalaxyShape(200, 0.75, 90.))
-tractor = Tractor([tim],[gal])
+tractor = Tractor([tim1, tim2],[gal])
+
+fitsio.write('data-w1.fits', w1masked, clobber=True)
+fitsio.write('data-w2.fits', w2masked, clobber=True)
+wcs.writeto('wcs.fits')
+
+
+
 # mod = tractor.getModelImage(0)
 # 
 # plt.clf()
@@ -311,52 +509,45 @@ tractor = Tractor([tim],[gal])
 # plt.colorbar()
 # ps.savefig()
 
-w1masked = w1.copy()
-slc = slice(cy - 25, cy + 25)
-w1masked[slc, :] = 0.
-ie = np.ones_like(w1)
-ie[slc,:] = 0.
+# plt.clf()
+# plt.imshow(w1masked, origin='lower', interpolation='nearest',
+#            vmin=mn1, vmax=mx1, cmap='gray')
+# #plt.colorbar()
+# plt.title('W1 data')
+# lbticks(wcs, xlo,ylo)
+# ps.savefig()
 
-tim.data = w1masked
-tim.inverr = ie
-
-
-plt.figure(2)
-plt.clf()
-plt.imshow(w1masked, origin='lower', interpolation='nearest',
-           vmin=mn1, vmax=mx1, cmap='gray')
-#plt.colorbar()
-plt.title('W1 data')
-lbticks(wcs, xlo,ylo)
-ps.savefig()
-plt.figure(1)
+# rgb = _unwise_to_rgb([w1masked, w2masked], S=[S,S], Q=Q)
+# plt.clf()
+# dimshow(rgb)
+# plt.title('Masked data')
+# lbticks(wcs, xlo,ylo)
+# ps.savefig()
+#plt.figure(1)
 
 
-
-mn2,mx2 = np.percentile(w1, [50,99])
-
-plt.figure(2)
-for fsize in [9, 25]: #[5,9,13,17,25]:
-    fw1 = median_filter(w1, size=fsize)
-    #fw1 = gaussian_filter(fw1, 1.)
-    plt.clf()
-    #pix = fw1 * (rr < rrmax)
-    pix = fw1
-    plt.imshow(pix, origin='lower', interpolation='nearest',
-               vmin=mn2, vmax=mx2, cmap='gray')
-    #plt.contour(pix, contours, color='k')
-    plt.title('%s-pixel Median filtered W1' % fsize)
-
-    lbticks(wcs, xlo,ylo)
-
-    ps.savefig()
-
-contours = np.percentile(w1, [50, 70, 85, 90, 95])
-#plt.contour(pix, contours, colors='k')
-plt.contour(pix, contours, colors='r')
-ps.savefig()
-
-
+# mn2,mx2 = np.percentile(w1, [50,99])
+# 
+# #plt.figure(2)
+# for fsize in [9, 25]: #[5,9,13,17,25]:
+#     fw1 = median_filter(w1, size=fsize)
+#     #fw1 = gaussian_filter(fw1, 1.)
+#     plt.clf()
+#     #pix = fw1 * (rr < rrmax)
+#     pix = fw1
+#     plt.imshow(pix, origin='lower', interpolation='nearest',
+#                vmin=mn2, vmax=mx2, cmap='gray')
+#     #plt.contour(pix, contours, color='k')
+#     plt.title('%s-pixel Median filtered W1' % fsize)
+# 
+#     lbticks(wcs, xlo,ylo)
+# 
+#     ps.savefig()
+# 
+# contours = np.percentile(w1, [50, 70, 85, 90, 95])
+# #plt.contour(pix, contours, colors='k')
+# plt.contour(pix, contours, colors='r')
+# ps.savefig()
 
 
 tractor.freezeParam('images')
@@ -370,28 +561,90 @@ for step in range(50):
         break
 
 mod1 = tractor.getModelImage(0)
-resid1 = w1 - mod1
+resid1 = w1masked - mod1
+mod2 = tractor.getModelImage(1)
+resid2 = w2masked - mod2
+
+
+#plt.figure(2)
+
+rgb = _unwise_to_rgb([mod1, mod2], S=[S,S], Q=Q)
+plt.clf()
+dimshow(rgb)
+plt.title('Model')
+lbticks(wcs, xlo,ylo)
+ps.savefig()
+plt.savefig('xbulge-fit-model.pdf')
+
+rgb = resid_rgb(resid1, resid2)
+plt.clf()
+dimshow(rgb)
+plt.title('Residuals')
+lbticks(wcs, xlo,ylo)
+ps.savefig()
+plt.savefig('xbulge-fit-resid.pdf')
+
+rgb = resid_rgb(resid1*mask, resid2*mask)
+plt.clf()
+dimshow(rgb)
+plt.title('Residuals (masked)')
+lbticks(wcs, xlo,ylo)
+ps.savefig()
+plt.savefig('xbulge-fit-residmasked.pdf')
+
+print('Mask:', mask.dtype)
+fitsio.write('resid1.fits', resid1, clobber=True)
+fitsio.write('resid2.fits', resid2, clobber=True)
+fitsio.write('mask.fits', mask.astype(np.uint8), clobber=True)
+
+fr1 = median_filter(resid1*mask, size=50)
+fr2 = median_filter(resid2*mask, size=50)
+
+rgb = resid_rgb(fr1, fr2)
+plt.clf()
+dimshow(rgb)
+plt.title('Residuals (smoothed)')
+lbticks(wcs, xlo,ylo)
+ps.savefig()
+plt.savefig('xbulge-fit-smooth.pdf')
+
+from astrometry.util.util import median_smooth
+fr1 = np.zeros_like(resid1)
+fr2 = np.zeros_like(resid2)
+median_smooth(resid1, np.logical_not(mask), 25, fr1)
+median_smooth(resid2, np.logical_not(mask), 25, fr2)
+
+rgb = resid_rgb(fr1, fr2)
+plt.clf()
+dimshow(rgb)
+plt.title('Residuals (smoothed)')
+lbticks(wcs, xlo,ylo)
+ps.savefig()
+plt.savefig('xbulge-fit-smooth2.pdf')
+
+
+
 
 # plt.clf()
 # plt.imshow(mod1, interpolation='nearest', origin='lower')
 # #plt.colorbar()
 # ps.savefig()
 
-plt.figure(2)
-
-plt.clf()
-plt.imshow(mod1 * ie, vmin=mn1, vmax=mx1, interpolation='nearest', origin='lower', cmap='gray')
-plt.title('W1 model')
-lbticks(wcs, xlo,ylo)
-ps.savefig()
-
-plt.figure(1)
+# plt.clf()
+# plt.imshow(mod1 * ie1, vmin=mn1, vmax=mx1, interpolation='nearest', origin='lower', cmap='gray')
+# plt.title('W1 model')
+# lbticks(wcs, xlo,ylo)
+# ps.savefig()
+# 
+# plt.figure(1)
 
 #rkwa = dict(vmin=-1000, vmax=1000, origin='lower', interpolation='nearest')
 
+resid1 *= mask
+
 rm = np.percentile(np.abs(resid1), 95)
 
-plt.figure(2)
+#plt.figure(2)
 plt.clf()
 #plt.imshow(resid1, **rkwa)
 #plt.imshow(resid1, vmin=mn1, vmax=mx1, interpolation='nearest', origin='lower')
@@ -400,12 +653,12 @@ plt.imshow(resid1, vmin=-rm, vmax=rm, interpolation='nearest',
 plt.title('W1 Residual')
 lbticks(wcs, xlo,ylo)
 ps.savefig()
-plt.figure(1)
+#plt.figure(1)
 
 
 fitsio.write('resid1.fits', resid1, clobber=True)
 
-plt.figure(2)
+#plt.figure(2)
 #for fsize in [5, 9, 17, 25]:
 for fsize in [40]:
     fw1 = median_filter(resid1, size=fsize)
@@ -427,8 +680,8 @@ for fsize in [40]:
     plt.contour(fw1, contours, colors='r', linestyles='solid')
 
     ps.savefig()
-plt.figure(1)
 
+#plt.figure(1)
 sys.exit(0)
     
 
