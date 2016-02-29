@@ -55,7 +55,7 @@ def resid_rgb(resid1, resid2):
     return RGB
 
 
-if True:
+if False:
     from astrometry.util.file import *
     from tractor import *
     from tractor.galaxy import *
@@ -88,7 +88,7 @@ if True:
     sys.exit(0)
     
         
-if True:
+if False:
     import emcee
     from tractor import *
     from tractor.galaxy import *
@@ -261,12 +261,21 @@ if False:
     sys.exit(0)
 
 
-fns = ['w1-lbzoom-5-1800-u-wcs.fits',
-       'w2-lbzoom-5-1800-u-wcs.fits',]
+#fns = ['w1-lbzoom-5-1800-u-wcs.fits',
+#       'w2-lbzoom-5-1800-u-wcs.fits',]
+
+#fns = ['unwise2-w1-lbzoom-5-1800.fits',
+#       'unwise2-w2-lbzoom-5-1800.fits',]
+
+fns = ['unwise-w1-lbzoom-5-1800.fits',
+       'unwise-w2-lbzoom-5-1800.fits',]
+
 imgs = [fitsio.read(fn) for fn in fns]
 wcs = anwcs(fns[0])
 print('WCS header', wcs)
 
+for img in imgs:
+    img /= 10.
 
 #from decals import settings
 from map.views import _unwise_to_rgb
@@ -489,8 +498,14 @@ from tractor.galaxy import *
 w1masked = w1orig.copy()[ylo:yhi, xlo:xhi]
 w2masked = w2orig.copy()[ylo:yhi, xlo:xhi]
 
+print('masked size W1:', w1masked.shape)
+print('masked size W2:', w2masked.shape)
+
 w1mag = -2.5*(np.log10(w1masked) - 9.)
 w2mag = -2.5*(np.log10(w2masked) - 9.)
+
+print(np.sum(np.isfinite(w1mag)), 'pixels finite')
+print(np.sum(np.isfinite(w2mag)), 'pixels finite')
 
 plt.clf()
 plt.hist((w1mag - w2mag).ravel(), range=(-1,1), bins=100)
@@ -509,7 +524,27 @@ ps.savefig()
 # plt.title('Color mask')
 # ps.savefig()
 
-cf = median_filter(w1mag - w2mag, size=5)
+from astrometry.util.util import median_smooth
+cc = w1mag - w2mag
+goodcolor = np.isfinite(cc)
+
+#cf = median_filter(w1mag - w2mag, size=5)
+#cf = np.zeros_like(cc)
+#median_smooth(cc, np.logical_not(goodcolor), 2, cf)
+#mlo,mhi = np.percentile(cf, [5,95])
+#mlo,mhi = np.percentile(cf[goodcolor * np.isfinite(cf)], [5,95])
+mlo,mhi = np.percentile(cc[goodcolor], [5,95])
+
+print('W1 - W2 color masks:', mlo,mhi)
+
+print('Bad colors:', np.sum(np.logical_not(goodcolor)))
+print('Colors cut:', np.sum(goodcolor * np.logical_or(cc < mlo, cc > mhi)))
+
+#mask = np.isfinite(cf) * (cf > mlo) * (cf < mhi)
+mask = goodcolor * (cc > mlo) * (cc < mhi)
+#mask = (cf > mlo) * (cf < mhi)
+#mask = (np.abs(cf) < 0.5)
+
 # plt.clf()
 # plt.imshow(np.abs(cf) > 0.5)
 # plt.title('Color mask (2)')
@@ -523,10 +558,6 @@ lbticks(wcs, xlo,ylo)
 ps.savefig()
 plt.savefig('xbulge-fit-data.pdf')
 
-mlo,mhi = np.percentile(cf, [5,95])
-print('W1 - W2 color masks:', mlo,mhi)
-mask = (cf > mlo) * (cf < mhi)
-#mask = (np.abs(cf) < 0.5)
 plt.clf()
 rgb = _unwise_to_rgb([w1masked * mask, w2masked * mask], S=[S,S], Q=Q)
 dimshow(rgb)
@@ -550,7 +581,7 @@ ie1 = ie2 = ie
 
 fitsio.write('w1masked.fits', w1masked * mask, clobber=True)
 fitsio.write('w2masked.fits', w2masked * mask, clobber=True)
-plt.imsave('rgb-masked.jpg', rgb)
+#plt.imsave('rgb-masked.jpg', rgb)
 
 
 tim1 = Image(data=w1masked, inverr=ie1,
@@ -685,6 +716,8 @@ fr1 = np.zeros_like(resid1)
 fr2 = np.zeros_like(resid2)
 median_smooth(resid1, np.logical_not(mask), 25, fr1)
 median_smooth(resid2, np.logical_not(mask), 25, fr2)
+#median_smooth(resid1, np.logical_not(mask), 15, fr1)
+#median_smooth(resid2, np.logical_not(mask), 15, fr2)
 
 rgb = resid_rgb(fr1, fr2)
 plt.clf()
