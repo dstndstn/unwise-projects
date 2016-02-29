@@ -270,10 +270,14 @@ if False:
 fns = ['unwise-w1-lbzoom-5-1800.fits',
        'unwise-w2-lbzoom-5-1800.fits',]
 
+#fns = ['unwise2-w1-lbzoom-5-1800.fits',
+#       'unwise2-w2-lbzoom-5-1800.fits',]
+
 imgs = [fitsio.read(fn) for fn in fns]
 wcs = anwcs(fns[0])
 print('WCS header', wcs)
 
+# HACK -- colormap scalings
 for img in imgs:
     img /= 10.
 
