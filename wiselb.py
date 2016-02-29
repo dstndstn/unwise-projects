@@ -97,12 +97,19 @@ else:
     zoom = 360. / width
     wcs = anwcs_create_hammer_aitoff(0., 0., zoom, W, H, FALSE)
 
+    scale_allwise = False
+
     # AllWISE coadds
     #basepat = 'allwise-w%i-lbzoom-%i-%i.fits'
     #jpegfn = 'allwise-wlbzoom.png'
 
+    # unWISE
     basepat = 'unwise-w%i-lbzoom-%i-%i.fits'
     jpegfn = 'unwise-wlbzoom.png'
+
+    # unWISE 2
+    #basepat = 'unwise2-w%i-lbzoom-%i-%i.fits'
+    #jpegfn  = 'unwise2-wlbzoom.png'
 
     #basepat = 'w%i-lbzoom-%i-%i.fits'
     #jpegfn = 'wlbzoom.jpg'
@@ -119,10 +126,11 @@ T = fits_table('wisex-atlas.fits')
 
 imgs = []
 
-for band in [3,4, 1,2]:
-#for band in [1,2]:
+#for band in [3,4, 1,2]:
+for band in [1,2]:
     outfn = basepat % (band, scalelevel, H)
     if os.path.exists(outfn):
+        print('Exists:', outfn)
         img = fitsio.read(outfn)
 
         #outfn = outfn.replace('.fits', '-u.fits')
@@ -151,8 +159,16 @@ for band in [3,4, 1,2]:
                           'unwise-%s-w%i-img-u.fits' % (brick, band))
         qfn = os.path.join('unwise-coadds-quarter',
                            'unwise-%s-w%i.fits' % (brick, band))
-        hfn = os.path.join('wise-coadds-half',
+        hfn = os.path.join('unwise-coadds-half',
                            'unwise-%s-w%i.fits' % (brick, band))
+
+        # unWISE-R
+        # fn = os.path.join('unwise2-coadds', brick[:3], brick,
+        #                   'unwise-%s-w%i-img-u.fits' % (brick, band))
+        # qfn = os.path.join('unwise2-coadds-quarter',
+        #                    'unwise-%s-w%i.fits' % (brick, band))
+        # hfn = os.path.join('unwise2-coadds-half',
+        #                    'unwise-%s-w%i.fits' % (brick, band))
 
 
         # AllWISE
@@ -165,6 +181,7 @@ for band in [3,4, 1,2]:
 
         if not os.path.exists(qfn):
             if not os.path.exists(hfn):
+                print('Reading', fn)
                 halfsize(fn, hfn)
                 #print('Wrote', hfn)
             halfsize(hfn, qfn)
@@ -195,11 +212,15 @@ for band in [3,4, 1,2]:
         ox = np.round(ox - 1).astype(int)
         oy = np.round(oy - 1).astype(int)
         K = (ox >= 0) * (ox < W) * (oy >= 0) * (oy < H) * ok
+        n1 = np.sum(K)
+        K *= np.isfinite(I)
+        n2 = np.sum(K)
+        print('Non-finite input pixels:', n1-n2)
         if np.sum(K) == 0:
             # no overlap
             print('No overlap')
             continue
-    
+
         # img [oy[K], ox[K]] += I[K]
         # uimg[oy[K], ox[K]] += (I[K] * (nimg[oy[K], ox[K]] == 0))
         # nimg[oy[K], ox[K]] += 1
@@ -230,18 +251,21 @@ for band in [3,4, 1,2]:
     imgs.append(img)
 
 
+sys.exit(0)
+
 w1,w2 = imgs[:2]
 
-# AllWISE zeropoints: W1 = 20.5, W2 = 19.5
-w1 /= 10.**((20.5 - 22.5)/2.5)
-w2 /= 10.**((19.5 - 22.5)/2.5)
+if scale_allwise:
+    # AllWISE zeropoints: W1 = 20.5, W2 = 19.5
+    w1 /= 10.**((20.5 - 22.5)/2.5)
+    w2 /= 10.**((19.5 - 22.5)/2.5)
 
-w1 /= 4
-w2 /= 4
+    w1 /= 4
+    w2 /= 4
 
-# Just for kicks?
-w1 /= 2
-w2 /= 2
+    # Just for kicks?
+    w1 /= 2
+    w2 /= 2
 
 fns = ['w1-lbzoom-5-1800-u-wcs.fits',
        'w2-lbzoom-5-1800-u-wcs.fits',]
