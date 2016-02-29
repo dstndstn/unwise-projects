@@ -55,6 +55,21 @@ def resid_rgb(resid1, resid2):
     return RGB
 
 
+from tractor import Tractor
+class AsymmetricTractor(Tractor):
+    def getLogLikelihood(self):
+        chisq = 0.
+        for i,chi in enumerate(self.getChiImages()):
+            # chi = (img - mod) / error
+            #chisq += (chi.astype(float) ** 2).sum()
+
+            # positive residuals: unexplained flux penalized less
+            I = (chi > 0)
+            chisq += ((0.5 * chi[I]) ** 2).sum()
+            I = (chi < 0)
+            chisq += ((1.0 * chi[I]) ** 2).sum()
+        return -0.5 * chisq
+
 if True:
     from astrometry.util.file import *
     from tractor import *
@@ -65,26 +80,108 @@ if True:
 
     X = unpickle_from_file('sample.pickle')
 
-    class AsymmetricTractor(Tractor):
-        def getLogLikelihood(self):
-            chisq = 0.
-            for i,chi in enumerate(self.getChiImages()):
-                # chi = (img - mod) / error
-                #chisq += (chi.astype(float) ** 2).sum()
-
-                # positive residuals: unexplained flux penalized less
-                I = (chi > 0)
-                chisq += ((0.5 * chi[I]) ** 2).sum()
-                I = (chi < 0)
-                chisq += ((1.0 * chi[I]) ** 2).sum()
-            return -0.5 * chisq
-
     tr = X['tractor']
-    at = AsymmetricTractor(tr.images, tr.catalog)
-    at.freezeParam('images')
+    #at = AsymmetricTractor(tr.images, tr.catalog)
+    #at.freezeParam('images')
+    #tractor = at
 
-    at.printThawedParams()
+    tractor = tr
+    
+    tractor.printThawedParams()
+
+    import emcee
+
+    w1 = tractor.images[0].data
+    w2 = tractor.images[1].data
+    wcs = anwcs('wcs.fits')
+    xlo,ylo = 1362, 450
+    
+
+    # Create emcee sampler
+    nw = 30
+    ndim = len(tractor.getParams())
+    print('N dim:', ndim)
+    
+    sampler = emcee.EnsembleSampler(nw, ndim, tractor)
+
+    p0 = tractor.getParams()
+    #std = at.getStepSizes()
+    std = np.array([1.0, 1.0, 1e7, 1e7, 0.01, 0.01, 0.01])
+    pp = emcee.utils.sample_ball(p0, std, size=nw)
+
+    print('Fitting params: (%i):' % len(p0))
+    tractor.printThawedParams()
+
+    print('Step sizes:', std)
+    
+    nsteps = 100
+    
+    allpp = np.zeros((nsteps, nw, ndim), np.float32)
+    alllnp = np.zeros((nsteps, nw), np.float32)
+
+    #pickle_to_file(dict(allpp=allpp, alllnp=alllnp, tractor=tractor),
+    #               'sample2.pickle')
+
+    rstate = None
+    lnp = None
+    for step in range(nsteps):
+        print('Taking step', step)
+        pp,lnp,rstate = sampler.run_mcmc(pp, 1, lnprob0=lnp, rstate0=rstate)
+        print('Max lnprob:', np.max(lnp))
+        i = np.argmax(lnp.ravel())
+        pbest = pp[i,:]
+        print('Best params:', pbest)
+
+        tractor.setParams(pbest)
+        mod1 = tractor.getModelImage(0)
+        resid1 = w1 - mod1
+        mod2 = tractor.getModelImage(1)
+        resid2 = w2 - mod2
         
+        rgb = resid_rgb(resid1, resid2)
+        plt.clf()
+        dimshow(rgb)
+        plt.title('Residuals')
+        lbticks(wcs, xlo,ylo)
+        plt.savefig('resid.png')
+
+        chi1 = resid1 * tractor.images[0].getInvError()
+        chi2 = resid2 * tractor.images[1].getInvError()
+        
+        plt.clf()
+        plt.hist(chi1[chi1 != 0].ravel(), range=(-10, 10), bins=100,
+                 histtype='step', color='b')
+        plt.hist(chi2[chi2 != 0].ravel(), range=(-10, 10), bins=100,
+                 histtype='step', color='r')
+        plt.savefig('residhist.png')
+        
+        allpp[step,:,:] = pp
+        alllnp[step,:] = lnp
+
+        plt.figure(1)
+        plt.clf()
+        plt.plot(alllnp[:step+1,:], 'b', alpha=0.5)
+        #mx = alllnp.max()
+        #plt.ylim(mx-20, mx+5)
+        plt.title('log posterior')
+        plt.savefig('lnp.png')
+
+        if step % 10 == 9:
+            import triangle
+            X = allpp[:step+1, :,:].reshape(((step+1) * nw, ndim))
+            print('std in X:', np.std(X, axis=0))
+            plt.figure(2)
+            plt.clf()
+            triangle.corner(X, labels=tractor.getParamNames(), plot_contours=False)
+            plt.savefig('corner.png')
+            plt.clf()
+            plt.figure(1)
+
+    pickle_to_file(dict(allpp=allpp, alllnp=alllnp, tractor=tractor),
+                   'sample3.pickle')
+
+    
+    
     sys.exit(0)
     
         
