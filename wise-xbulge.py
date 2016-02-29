@@ -2,10 +2,12 @@ from __future__ import print_function
 import sys
 import matplotlib
 matplotlib.use('Agg')
-# matplotlib.rc('text', usetex=True)
-# matplotlib.rc('font', family='serif')
-# matplotlib.rc('font', serif='computer modern roman')
-# matplotlib.rc('font', **{'sans-serif': 'computer modern sans serif'})
+
+matplotlib.rc('text', usetex=True)
+matplotlib.rc('font', family='serif')
+matplotlib.rc('font', serif='computer modern roman')
+matplotlib.rc('font', **{'sans-serif': 'computer modern sans serif'})
+
 import pylab as plt
 import fitsio
 from astrometry.util.util import *
