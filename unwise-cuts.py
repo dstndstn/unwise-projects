@@ -6,6 +6,168 @@ from astrometry.util.fits import *
 from astrometry.sdss.common import cas_flags, photo_flags1_map, photo_flags2_map
 from astrometry.libkd.spherematch import match_radec, tree_build_radec, tree_free, tree_search_radec, trees_match
 
+def gupta():
+    T = fits_table('sdss-dr10d-tiles.fits')
+    O = fits_table('gupta.fits')
+    #O.rename('dr8objid', 'objid')
+    Omap = dict([(objid,i) for i,objid in enumerate(O.objid)])
+    PP = []
+    J = []
+    for tile in T.coadd_id:
+        fn = 'sdss-dr10d-phot/phot-%s.fits' % tile
+        if not os.path.exists(fn):
+            print('File not found:', fn)
+            continue
+        P = fits_table(fn, columns=['objid'])
+        I = []
+        for i,objid in enumerate(P.objid):
+            objid = int(objid)
+            try:
+                j = Omap[objid]
+            except KeyError:
+                #print('Objid not found:', objid)
+                continue
+            I.append(i)
+            J.append(j)
+        print(len(I), 'in', tile)
+        if len(I) == 0:
+            continue
+        P = fits_table(fn, rows=np.array(I))
+        PP.append(P)
+    P = merge_tables(PP)
+    P.matched = np.ones(len(P), bool)
+    del PP
+    N = len(P)
+    print('Total of', N, 'read')
+    J = np.array(J)
+    Jinv = np.empty(len(O), int)
+    # no-match
+    Jinv[:] = N
+    Jinv[J] = np.arange(N)
+
+    jj = np.flatnonzero(Jinv < N)
+    print('First match:', jj[0])
+
+    empty = fits_table()
+    empty.matched = np.zeros(1, bool)
+    Pplus = merge_tables([P, empty], columns='fillzero')
+    print('Pplus:', len(Pplus))
+    Pplus = Pplus[Jinv]
+    #O.rename('objid', 'dr8objid')
+    Pplus.add_columns_from(O)
+    Pplus.writeto('/global/cscratch1/sd/dstn/gupta.fits')
+
+
+def fengshuai():
+    T = fits_table('sdss-dr10d-tiles.fits')
+    O = fits_table('maingalDR7_fengshuai0210.fit')
+    O.rename('dr8objid', 'objid')
+
+    Omap = dict([(objid,i) for i,objid in enumerate(O.objid)])
+
+    PP = []
+    J = []
+    for tile in T.coadd_id:
+        fn = 'sdss-dr10d-phot/phot-%s.fits' % tile
+        if not os.path.exists(fn):
+            print('File not found:', fn)
+            continue
+        P = fits_table(fn, columns=['objid'])
+        I = []
+        for i,objid in enumerate(P.objid):
+            objid = int(objid)
+            try:
+                j = Omap[objid]
+            except KeyError:
+                #print('Objid not found:', objid)
+                continue
+            I.append(i)
+            J.append(j)
+        print(len(I), 'in', tile)
+        if len(I) == 0:
+            continue
+        P = fits_table(fn, rows=np.array(I))
+        PP.append(P)
+    P = merge_tables(PP)
+    P.matched = np.ones(len(P), bool)
+    del PP
+    N = len(P)
+    print('Total of', N, 'read')
+    J = np.array(J)
+    Jinv = np.empty(len(O), int)
+    # no-match
+    Jinv[:] = N
+    Jinv[J] = np.arange(N)
+
+    jj = np.flatnonzero(Jinv < N)
+    print('First match:', jj[0])
+
+    empty = fits_table()
+    empty.matched = np.zeros(1, bool)
+    Pplus = merge_tables([P, empty], columns='fillzero')
+    print('Pplus:', len(Pplus))
+    Pplus = Pplus[Jinv]
+    O.rename('objid', 'dr8objid')
+    Pplus.add_columns_from(O)
+    Pplus.writeto('/global/cscratch1/sd/dstn/fengshuai.fits')
+    
+
+def leslie():
+    T = fits_table('sdss-dr10d-tiles.fits')
+    #O = fits_table('dr12_objIDs_leslie.fits')
+    O = fits_table('leslie_SDSS13_objids.fits')
+    #O.rename('objid_1', 'objid')
+    
+    Omap = dict([(objid,i) for i,objid in enumerate(O.objid)])
+
+    PP = []
+    J = []
+    for tile in T.coadd_id:
+        fn = 'sdss-dr10d-phot/phot-%s.fits' % tile
+        if not os.path.exists(fn):
+            print('File not found:', fn)
+            continue
+        P = fits_table(fn, columns=['objid'])
+        I = []
+        for i,objid in enumerate(P.objid):
+            objid = int(objid)
+            try:
+                j = Omap[objid]
+            except KeyError:
+                #print('Objid not found:', objid)
+                continue
+            I.append(i)
+            J.append(j)
+        print(len(I), 'in', tile)
+        if len(I) == 0:
+            continue
+        P = fits_table(fn, rows=np.array(I))
+        PP.append(P)
+    P = merge_tables(PP)
+    P.matched = np.ones(len(P), bool)
+    del PP
+    N = len(P)
+    print('Total of', N, 'read')
+    J = np.array(J)
+    Jinv = np.empty(len(O), int)
+    # no-match
+    Jinv[:] = N
+    Jinv[J] = np.arange(N)
+
+    jj = np.flatnonzero(Jinv < N)
+    print('First match:', jj[0])
+
+    empty = fits_table()
+    empty.matched = np.zeros(1, bool)
+    Pplus = merge_tables([P, empty], columns='fillzero')
+    print('Pplus:', len(Pplus))
+    Pplus = Pplus[Jinv]
+    O.rename('objid', 'objid_orig')
+    Pplus.add_columns_from(O)
+    #Pplus.writeto('/scratch1/scratchdirs/dstn/leslie.fits')
+    Pplus.writeto('/global/cscratch1/sd/dstn/leslie2.fits')
+
+
 def ogrady():
     T = fits_table('sdss-dr10d-tiles.fits')
 
@@ -314,7 +476,10 @@ def amaral():
 if __name__ == '__main__':
     #hoyle()
     #amaral()
-    ogrady()
+    #ogrady()
+    leslie()
+    #fengshuai()
+    #gupta()
 
     import sys
     sys.exit(0)
