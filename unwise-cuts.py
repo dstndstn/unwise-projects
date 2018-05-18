@@ -472,14 +472,87 @@ def amaral():
     all_matches_near('taylor.fits', 3., 'sdss-dr10d-tiles.fits',
                      'sdss-dr10d-phot', 'taylor-all-matches.fits', 'taylor-all')
 
+def salvato():
+    '''
+    > fitscopy RADEC_forDustin.fits+1"[col ra=xray_ra; dec=xray_dec]" RADEC_forDustin_x.fits
+    '''
+    all_matches_near('RADEC_forDustin_x.fits', 30., 'sdss-dr10d-tiles.fits',
+                     'sdss-dr10d-phot', 'salvato-matches.fits', 'salvato')
+
+def fan():
+    T = fits_table('sdss-dr10d-tiles.fits')
+
+    TT = []
+    for tile in T.coadd_id:
+        fn = 'sdss-dr10d-phot/phot-%s.fits' % tile
+        if not os.path.exists(fn):
+            print('File not found:', fn)
+            continue
+        P = fits_table(fn)
+        I = np.flatnonzero(np.logical_or(
+            P.w3_nanomaggies * np.sqrt(P.w3_nanomaggies_ivar) > 5,
+            P.w4_nanomaggies * np.sqrt(P.w4_nanomaggies_ivar) > 5))
+        print(len(P), 'from', fn, 'and', len(I), 'with W3 or W4 S/N>5')
+        if len(I) == 0:
+            continue
+        TT.append(P[I])
+    T = merge_tables(TT)
+    T.writeto('/global/cscratch1/sd/dstn/fan.fits')
+
+
+def mccleary():
+    all_matches_near('/global/cscratch1/sd/dstn/tmp/redmagic_dr8_public_v6.3_faint.fits',
+                     1., 'sdss-dr13-atlas.fits',
+                     'sdss-dr13-phot',
+                     'mccleary-matches.fits', 'mccleary')
+
 
 if __name__ == '__main__':
+    mccleary()
+    #fan()
     #hoyle()
     #amaral()
     #ogrady()
-    leslie()
+    #leslie()
     #fengshuai()
     #gupta()
+    #salvato()
+    sys.exit()
+
+    # Match to the AllWISE catalog for unmatched targets.
+    from wise.allwisecat import allwise_catalog_dec_range
+    from astrometry.libkd.spherematch import *
+    T1 = fits_table('RADEC_forDustin_x.fits')
+    T2 = fits_table('salvato-matches.fits')
+    unmatched = np.ones(len(T1), bool)
+    unmatched[np.unique(T2.salvato_index)] = False
+    T = T1[unmatched]
+    print(len(T), 'of', len(T1), 'targets did not have SDSS matches')
+
+    print('Dec range', T.dec.min(), T.dec.max())
+
+    dd = np.array(allwise_catalog_dec_range)
+    I = np.flatnonzero((dd[:,0] < T.dec.max()) * (dd[:,1] > T.dec.min()))
+    print('AllWISE slices atalogs in range:', I)
+    MM = []
+    for i in I:
+        rdfn = '/project/projectdirs/cosmo/data/wise/allwise-catalog/wise-allwise-cat-part%02i-radec.fits' % i
+        print('Reading', rdfn)
+        RD = fits_table(rdfn)
+        II,JJ,d = match_radec(T.ra, T.dec, RD.ra, RD.dec, 30./3600.)
+        print(len(II), 'matches')
+        if len(II) == 0:
+            continue
+        catfn = '/project/projectdirs/cosmo/data/wise/allwise-catalog/wise-allwise-cat-part%02i.fits' % i
+        print('Reading', catfn)
+        M = fits_table(catfn, rows=JJ)
+        M.salvato_index = II
+        M.ra_salvato = T.ra[II]
+        M.dec_salvato = T.dec[II]
+        MM.append(M)
+    M = merge_tables(MM)
+    M.writeto('salvato-allwise.fits')
+
 
     import sys
     sys.exit(0)
