@@ -3,11 +3,35 @@ from tractor import *
 from astrometry.util.fits import *
 from astrometry.util.util import Tan
 from astrometry.util.multiproc import multiproc
+from glob import glob
+
+'''
+text2fits NDWFS.cat NDWFS.fits -H "X_IMAGE Y_IMAGE XPEAK_IMAGE YPEAK_IMAGE NUMBER FLUX_ISO FLUXERR_ISO MAG_ISO MAGERR_ISO MAG_ISOCOR MAGERR_ISOCOR FLUX_APER FLUXERR_APER mag_aper_1 mag_aper_2 mag_aper_3 mag_aper_4 mag_aper_5 mag_aper_6 mag_aper_7 mag_aper_8 mag_aper_9 mag_aper_10 mag_aper_11 mag_aper_12 magerr_aper_1 magerr_aper_2 magerr_aper_3 magerr_aper_4 magerr_aper_5 magerr_aper_6 magerr_aper_7 magerr_aper_8 magerr_aper_9 magerr_aper_10 magerr_aper_11 magerr_aper_12 MAG_AUTO MAGERR_AUTO KRON_RADIUS BACKGROUND THRESHOLD FLUX_MAX ISOAREA_IMAGE ALPHA_J2000 DELTA_J2000 ALPHAPEAK_J2000 DELTAPEAK_J2000 X2_IMAGE Y2_IMAGE XY_IMAGE CXX_IMAGE CYY_IMAGE CXY_IMAGE CXX_WORLD CYY_WORLD CXY_WORLD A_IMAGE B_IMAGE A_WORLD B_WORLD THETA_IMAGE THETA_WORLD ELONGATION ELLIPTICITY ERRX2_IMAGE ERRY2_IMAGE ERRXY_IMAGE ERRA_IMAGE ERRB_IMAGE ERRTHETA_IMAGE FWHM_IMAGE FLAGS IMAFLAGS_ISO CLASS_STAR" -f ffjjjffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffjdddddddffffffffffffffdddffffjjf
+'''
+
+
 
 def main():
+    catfns = glob('/global/cscratch1/sd/dstn/ndwfs/NDWFS*.cat')
+    for catfn in catfns:
+        fitsfn = catfn.replace('.cat', '.fits')
+        if os.path.exists(fitsfn):
+            print('Exists:', fitsfn)
+            continue
+
+        cmd = 'text2fits %s %s -H "X_IMAGE Y_IMAGE XPEAK_IMAGE YPEAK_IMAGE NUMBER FLUX_ISO FLUXERR_ISO MAG_ISO MAGERR_ISO MAG_ISOCOR MAGERR_ISOCOR flux_aper_1 flux_aper_2 flux_aper_3 flux_aper_4 flux_aper_5 flux_aper_6 flux_aper_7 flux_aper_8 flux_aper_9 flux_aper_10 flux_aper_11 flux_aper_12 fluxerr_aper_1 fluxerr_aper_2 fluxerr_aper_3 fluxerr_aper_4 fluxerr_aper_5 fluxerr_aper_6 fluxerr_aper_7 fluxerr_aper_8 fluxerr_aper_9 fluxerr_aper_10 fluxerr_aper_11 fluxerr_aper_12 mag_aper_1 mag_aper_2 mag_aper_3 mag_aper_4 mag_aper_5 mag_aper_6 mag_aper_7 mag_aper_8 mag_aper_9 mag_aper_10 mag_aper_11 mag_aper_12 magerr_aper_1 magerr_aper_2 magerr_aper_3 magerr_aper_4 magerr_aper_5 magerr_aper_6 magerr_aper_7 magerr_aper_8 magerr_aper_9 magerr_aper_10 magerr_aper_11 magerr_aper_12 MAG_AUTO MAGERR_AUTO KRON_RADIUS BACKGROUND THRESHOLD FLUX_MAX ISOAREA_IMAGE ALPHA_J2000 DELTA_J2000 ALPHAPEAK_J2000 DELTAPEAK_J2000 X2_IMAGE Y2_IMAGE XY_IMAGE CXX_IMAGE CYY_IMAGE CXY_IMAGE CXX_WORLD CYY_WORLD CXY_WORLD A_IMAGE B_IMAGE A_WORLD B_WORLD THETA_IMAGE THETA_WORLD ELONGATION ELLIPTICITY ERRX2_IMAGE ERRY2_IMAGE ERRXY_IMAGE ERRA_IMAGE ERRB_IMAGE ERRTHETA_IMAGE FWHM_IMAGE FLAGS IMAFLAGS_ISO CLASS_STAR" -f ffjjjffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffjdddddddffffffffffffffdddffffjjf' % (catfn, fitsfn)
+        print(cmd)
+        os.system(cmd)
+
+        outfn = fitsfn.replace('.fits', '-wise.fits')
+
+        run_one(fitsfn, outfn)
+
+
+def run_one(fitsfn, outfn):
     mp = multiproc(4)
 
-    T = fits_table('NDWFS.fits')
+    T = fits_table(fitsfn)
     #T = T[:100]
     T.rename('alpha_j2000', 'ra')
     T.rename('delta_j2000', 'dec')
@@ -105,13 +129,12 @@ def main():
         WISE.wise_mask[I, 0] = ( Mi       & 3)
         WISE.wise_mask[I, 1] = ((Mi >> 2) & 3)
     
-    print(WISE)
-    WISE.about()
-
-    WISE.writeto('wise.fits')
+    #print(WISE)
+    #WISE.about()
+    #WISE.writeto('wise.fits')
 
     T.add_columns_from(WISE)
-    T.writeto('ndwfs-wise.fits')
+    T.writeto(outfn)
 
 
 

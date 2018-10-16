@@ -7,6 +7,70 @@ from astrometry.util.fits import *
 from astrometry.sdss.common import cas_flags, photo_flags1_map, photo_flags2_map
 from astrometry.libkd.spherematch import match_radec, tree_build_radec, tree_free, tree_search_radec, trees_match
 
+def cerulo():
+    T = fits_table('SDSS_DR13_galaxy_table_for_unWISE_query_pcerulo.fit.gz')
+    print(len(T), 'objids')
+
+    if True:
+        jj = []
+        SS = []
+        fns = glob('sdss-dr13-phot/phot-*.fits')
+        fns.sort()
+        for fn in fns:
+            print(fn)
+            S = fits_table(fn)
+            print(len(S), 'sources')
+            #S.objid = np.array([int(o) for o in S.objid])
+            #sobjid = set(S.objid)
+            #u = sobjid.intersection(objids)
+            #print(len(u), 'in intersection')
+            inds = dict([(int(o), i) for i,o in enumerate(S.objid)])
+            I = []
+            for j,o in enumerate(T.objid):
+                try:
+                    i = inds[o]
+                    I.append(i)
+                    jj.append(j)
+                except KeyError:
+                    continue
+            print('Matched', len(I))
+            if len(I) == 0:
+                continue
+            S.cut(np.array(I))
+            SS.append(S)
+        S = merge_tables(SS)
+        S.writeto('cerulo-matched.fits')
+
+    S = fits_table('cerulo-matched.fits')
+    #sind = dict([(int(o), i) for i,o in enumerate(S.objid)])
+    S.dist = np.hypot(S.x - 1024, S.y - 1024)
+
+    print('x', S.x.min(), S.x.max(), 'y', S.y.min(), S.y.max())
+    T.sindex = np.empty(len(T), int)
+    T.sindex[:] = -1
+    T.sdist = np.empty(len(T), np.float32)
+    T.sdist[:] = 1e6
+    tind = dict([(o, i) for i,o in enumerate(T.objid)])
+    for i,o in enumerate(S.objid):
+        ti = tind[int(o)]
+        if S.dist[i] < T.sdist[ti]:
+            T.sdist[ti] = S.dist[i]
+            T.sindex[ti] = i
+
+    print(np.sum(T.sindex > -1), 'of', len(T), 'match')
+    #assert(np.all(T.sindex > -1))
+    ## HACK
+    T.cut(T.sindex > -1)
+
+    for c in S.columns():
+        if c in ['objid', 'dist']:
+            continue
+        T.set(c, S.get(c)[T.sindex])
+    T.delete_column('sindex')
+    T.delete_column('sdist')
+    T.writeto('cerulo.fits')
+
+
 def wang():
     #text2fits objID_GSWLC_sdss.dat wang.fits -f k
     T = fits_table('wang.fits')
@@ -575,7 +639,8 @@ def mccleary():
 
 
 if __name__ == '__main__':
-    wang()
+    cerulo()
+    #wang()
     #mccleary()
     #fan()
     #hoyle()
