@@ -7,8 +7,45 @@ from astrometry.util.fits import *
 from astrometry.sdss.common import cas_flags, photo_flags1_map, photo_flags2_map
 from astrometry.libkd.spherematch import match_radec, tree_build_radec, tree_free, tree_search_radec, trees_match
 
+def seuss():
+    #all_matches_near('psbs.fits', 1.0, 'sdss-dr13-atlas.fits',
+    #                 'sdss-dr13-phot', 'psbs-unwise.fits', 'seuss')
+    name = 'seuss'
+    T = fits_table('psbs-unwise.fits')
+    from collections import Counter
+    dups = Counter(zip(T.objid, T.get('%s_index' % name)))
+    print('Duplicate matches:', dups.most_common(5))
+    keep = np.ones(len(T), bool)
+    for (objid,ind),n in dups.most_common():
+        if n <= 1:
+            break
+        I = np.flatnonzero((T.objid == objid) * (T.get('%s_index' % name) == ind))
+        print(len(I), 'for', objid, ind)
+        dists = np.hypot(T.x[I] - 1024.5, T.y[I] - 1024.5)
+        imin = np.argmin(dists)
+        ii = I[imin]
+        keep[I] = False
+        keep[ii] = True
+
+    T.cut(keep)
+    T.writeto('psbs-unwise-2.fits')
+
+
+
+def lodieu():
+    #for fn in ['mytable1.fits', 'mytable2.fits', 'mytable3.fits']:
+    #T = fits_table(fn)
+    #all_matches_near('mytable1.fits', 1.0, 'sdss-dr13-atlas.fits',
+    #                 'sdss-dr13-phot', 'mytable1-unwise.fits', 'lodieu')
+    all_matches_near('mytable2.fits', 1.0, 'sdss-dr13-atlas.fits',
+                     'sdss-dr13-phot', 'mytable2-unwise.fits', 'lodieu')
+    all_matches_near('mytable3.fits', 1.0, 'sdss-dr13-atlas.fits',
+                     'sdss-dr13-phot', 'mytable3-unwise.fits', 'lodieu')
+
+
 def cerulo():
-    T = fits_table('SDSS_DR13_galaxy_table_for_unWISE_query_pcerulo.fit.gz')
+    T = fits_table('SDSS_DR13_galaxy_table_for_unWISE_query_pcerulo_v2.fit.gz')
+    #T = fits_table('SDSS_DR13_galaxy_table_for_unWISE_query_pcerulo.fit.gz')
     print(len(T), 'objids')
 
     if True:
@@ -638,8 +675,23 @@ def mccleary():
                      'mccleary-matches.fits', 'mccleary')
 
 
+def lai():
+    all_matches_near('lai.fits', 4., 'sdss-dr13-atlas.fits',
+                     'sdss-dr13-phot', 'lai-matches.fits', 'lai')
+
+def razink():
+    all_matches_near('razink.fits', 3., 'sdss-dr13-atlas.fits',
+                     'sdss-dr13-phot', 'razink-matches.fits', 'razink', nearest=True)
+
+
 if __name__ == '__main__':
-    cerulo()
+    import sys
+
+    seuss()
+    #cerulo()
+    #razink()
+    #lai()
+    #lodieu()
     #wang()
     #mccleary()
     #fan()
